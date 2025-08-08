@@ -56,54 +56,39 @@ class FinancialAgent:
         def query_transactions_tool(query: str) -> str:
             """Query transactions using natural language."""
             try:
-                # Parse the query into structured parameters
-                query_params = self._parse_query(query)
+                # Use LLM to translate natural language to SQL
+                sql_prompt = f"""
+                Translate this natural language query to SQL: "{query}"
+                
+                The transactions table has these columns:
+                - id (SERIAL PRIMARY KEY)
+                - amount (INTEGER, stored in cents)
+                - description (TEXT)
+                - category (TEXT)
+                - type (TEXT, either 'expense' or 'income')
+                - date (TIMESTAMP WITH TIME ZONE)
+                - created_at (TIMESTAMP WITH TIME ZONE)
+                - updated_at (TIMESTAMP WITH TIME ZONE)
+                
+                Important notes:
+                - Amount is stored in cents, so $10.50 is stored as 1050
+                - Use amount/100.0 to convert cents to dollars for display
+                - Categories include: technology, food, shopping, transportation, entertainment, health, utilities
+                - Types are: expense, income
+                
+                Return ONLY the raw SQL query as a plain string. Do not use markdown 
+                formatting, code blocks, or any other formatting. Just the SQL query itself.
+                """
 
-                # Execute the query
-                results = self.db.query_transactions(query_params)
+                response = self.llm.invoke(sql_prompt)
+                sql_query = str(response.content).strip()
 
-                # Format the response
-                if isinstance(results, dict) and any(
-                    key in results
-                    for key in ["total_amount", "count", "average_amount"]
-                ):
-                    # Aggregation results
-                    response_parts = []
-                    if "total_amount_dollars" in results:
-                        response_parts.append(
-                            f"Total: ${results['total_amount_dollars']:.2f}"
-                        )
-                    if "count" in results:
-                        response_parts.append(f"Count: {results['count']} transactions")
-                    if "average_amount_dollars" in results:
-                        response_parts.append(
-                            f"Average: ${results['average_amount_dollars']:.2f}"
-                        )
+                print(f"Generated SQL: {sql_query}")
 
-                    return f"Query results: {' | '.join(response_parts)}"
-                else:
-                    # List of transactions
-                    if not results:
-                        return "No transactions found matching your query."
+                # Execute the SQL query
+                results = self.db.execute_sql(sql_query)
 
-                    response_parts = [f"Found {len(results)} transactions:"]
-                    # Show first 5 transactions
-                    first_five = results[:5] if isinstance(results, list) else []
-                    for i, transaction in enumerate(first_five, 1):
-                        amount = transaction.get(
-                            "amount_dollars", transaction.get("amount", 0) / 100
-                        )
-                        response_parts.append(
-                            f"{i}. ${amount:.2f} - {transaction['description']} "
-                            f"({transaction['category']})"
-                        )
-
-                    if len(results) > 5:
-                        response_parts.append(
-                            f"... and {len(results) - 5} more transactions"
-                        )
-
-                    return "\n".join(response_parts)
+                return str(results)
 
             except Exception as e:
                 return f"Error querying transactions: {str(e)}"
@@ -162,7 +147,7 @@ class FinancialAgent:
                use the insert_transaction_tool to store it.
             
             2. If the user is asking about their transactions (e.g., "How much did I spend on food?"), 
-               use the query_transactions_tool to retrieve information.
+               use the query_transactions_tool to retrieve information. if query_transactions_tool returns a None, say that spendiing was 0.
             
             3. If the user is asking you to extract transaction details from text, 
                use the extract_transaction_tool.
@@ -182,76 +167,6 @@ class FinancialAgent:
         return AgentExecutor(
             agent=agent, tools=tools, verbose=True, handle_parsing_errors=True
         )
-
-    def _parse_query(self, query: str) -> Dict[str, Any]:
-        """
-        Parse natural language query into structured parameters.
-        """
-        # Simple keyword-based parsing (can be enhanced with LLM)
-        query_lower = query.lower()
-
-        # Extract category
-        category_mapping = {
-            "technology": ["tech", "computer", "laptop", "software", "technology"],
-            "food": [
-                "food",
-                "restaurant",
-                "coffee",
-                "lunch",
-                "dinner",
-                "breakfast",
-                "groceries",
-            ],
-            "shopping": ["shopping", "clothes", "amazon", "store", "purchase"],
-            "transportation": ["uber", "lyft", "gas", "fuel", "transportation", "car"],
-            "entertainment": ["movie", "netflix", "spotify", "entertainment"],
-            "health": ["medical", "doctor", "pharmacy", "health"],
-            "utilities": ["electricity", "water", "internet", "phone", "utilities"],
-        }
-
-        detected_category = None
-        for category, keywords in category_mapping.items():
-            if any(keyword in query_lower for keyword in keywords):
-                detected_category = category
-                break
-
-        # Detect query type
-        query_type = None
-        if any(
-            word in query_lower for word in ["spent", "spending", "expense", "cost"]
-        ):
-            query_type = "expense"
-        elif any(
-            word in query_lower for word in ["earned", "income", "salary", "revenue"]
-        ):
-            query_type = "income"
-
-        # Detect aggregation
-        aggregations = []
-        if any(word in query_lower for word in ["total", "sum", "how much"]):
-            aggregations.append("sum")
-        elif any(word in query_lower for word in ["average", "avg"]):
-            aggregations.append("average")
-        elif any(word in query_lower for word in ["count", "how many"]):
-            aggregations.append("count")
-
-        # Detect time range
-        date_range = None
-        if any(
-            word in query_lower for word in ["this month", "month", "current month"]
-        ):
-            date_range = "this_month"
-
-        return {
-            "filters": {
-                "category": detected_category,
-                "type": query_type,
-                "date_range": date_range,
-            },
-            "aggregations": aggregations,
-            "sort_by": "date",
-            "sort_order": "desc",
-        }
 
     def chat(
         self, message: str, chat_history: Optional[List[Dict[str, Any]]] = None
