@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15
+    container_name: financial_postgres
+    environment:
+      POSTGRES_DB: financial_db
+      POSTGRES_USER: financial_user
+      POSTGRES_PASSWORD: financial_password
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U financial_user -d financial_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Financial Assistant API
+  api:
+    build: .
+    container_name: financial_api
+    ports:
+      - '8000:8000'
+    environment:
+      - DATABASE_URL=postgresql://financial_user:financial_password@postgres:5432/financial_db
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:8000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:

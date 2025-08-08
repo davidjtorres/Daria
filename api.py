@@ -1,15 +1,23 @@
+"""
+FastAPI application with LangChain financial agent.
+"""
+
 import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv, find_dotenv
-from openai_client import OpenAIClient
+from financial_agent_new import FinancialAgent
 
 # Load environment variables
 load_dotenv(find_dotenv())
 
 # Create FastAPI app
-app = FastAPI(title="FinancIAl", description="Financial Assistant", version="1.0.0")
+app = FastAPI(
+    title="Financial Assistant",
+    description="AI-powered financial transaction manager",
+    version="2.0.0",
+)
 
 # Add CORS middleware
 app.add_middleware(
@@ -20,17 +28,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Initialize the financial agent
+financial_agent = FinancialAgent()
 
-# Pydantic models for request/response
+
+# Pydantic models
 class ChatRequest(BaseModel):
-    prompt: str
-    model: str = None
-    temperature: float = 1.0
+    message: str
+    chat_history: list = []
 
 
 class ChatResponse(BaseModel):
     response: str
-    prompt: str
+    message: str
     status: str
 
 
@@ -42,7 +52,9 @@ class HealthResponse(BaseModel):
 @app.get("/", response_model=HealthResponse)
 async def root():
     """Root endpoint"""
-    return HealthResponse(status="success", message="FastAPI is running!")
+    return HealthResponse(
+        status="success", message="Financial Assistant API is running!"
+    )
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -51,18 +63,25 @@ async def health_check():
     return HealthResponse(status="healthy", message="API is operational")
 
 
-@app.post("/api/chat", response_model=ChatResponse)
+@app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest):
-    """Chat endpoint that uses the OpenAI completion function"""
+    """
+    Single chat endpoint that handles all financial requests.
+
+    The agent can:
+    - Insert transactions (e.g., "I spent $50 on groceries")
+    - Query transactions (e.g., "How much did I spend on food?")
+    - Extract transaction details from text
+    """
     try:
-        # Get completion using the OpenAIClient
-        response = OpenAIClient().get_completion(
-            prompt=request.prompt,
-            model=request.model,
-            temperature=request.temperature
+        # Process the message with the financial agent
+        response = financial_agent.chat(
+            message=request.message, chat_history=request.chat_history
         )
 
-        return ChatResponse(response=response, prompt=request.prompt, status="success")
+        return ChatResponse(
+            response=response, message=request.message, status="success"
+        )
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -76,7 +95,7 @@ if __name__ == "__main__":
 
     # Run the application
     uvicorn.run(
-        "main_api:app",
+        "api:app",
         host="0.0.0.0",
         port=port,
         reload=True,  # Enable auto-reload for development

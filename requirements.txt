@@ -1,0 +1,24 @@
+# Core FastAPI and web framework
+fastapi==0.116.0
+uvicorn==0.32.0
+
+# LangChain and OpenAI integration
+langchain==0.3.27
+langchain-openai==0.3.27
+
+# Database
+psycopg2-binary==2.9.9
+
+# Environment and configuration
+python-dotenv==1.0.1
+
+# HTTP client for testing
+requests==2.31.0
+
+# Pydantic for data validation
+pydantic==2.8.0
+
+# CORS middleware
+python-multipart==0.0.9
+
+
