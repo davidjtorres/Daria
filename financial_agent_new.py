@@ -5,6 +5,8 @@ from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.tools import tool
 from database import DatabaseClient
 from utils import dollars_to_cents, validate_amount
+from constants import TransactionCategory
+from datetime import datetime
 
 
 class FinancialAgent:
@@ -12,7 +14,7 @@ class FinancialAgent:
 
     def __init__(self):
         """Initialize the financial agent."""
-        self.llm = ChatOpenAI(model="gpt-4o-mini", temperature=0)
+        self.llm = ChatOpenAI(model="gpt-4o-mini")
         self.db = DatabaseClient()
         self.agent = self._create_agent()
 
@@ -22,7 +24,11 @@ class FinancialAgent:
         # Create tool functions that can access the agent instance
         @tool
         def insert_transaction_tool(
-            amount: float, description: str, category: str, transaction_type: str
+            amount: float,
+            description: str,
+            category: str,
+            transaction_type: str,
+            date: str,
         ) -> str:
             """Insert a new transaction into the database."""
             try:
@@ -36,9 +42,8 @@ class FinancialAgent:
                     "description": description,
                     "category": category,
                     "type": transaction_type,
+                    "date": date,
                 }
-
-                print(transaction_data)
 
                 # Insert into database
                 result = self.db.insert_transaction(transaction_data)
@@ -73,7 +78,6 @@ class FinancialAgent:
                 Important notes:
                 - Amount is stored in cents, so $10.50 is stored as 1050
                 - Use amount/100.0 to convert cents to dollars for display
-                - Categories include: technology, food, shopping, transportation, entertainment, health, utilities
                 - Types are: expense, income
                 
                 Return ONLY the raw SQL query as a plain string. Do not use markdown 
@@ -93,45 +97,10 @@ class FinancialAgent:
             except Exception as e:
                 return f"Error querying transactions: {str(e)}"
 
-        @tool
-        def extract_transaction_tool(text: str) -> str:
-            """Extract transaction details from natural language text."""
-            try:
-                # Use the LLM to extract transaction details
-                extraction_prompt = f"""
-                Extract transaction details from the following text: "{text}"
-                
-                Return a JSON object with these fields:
-                - amount: float (the transaction amount)
-                - description: string (what the transaction was for)
-                - category: string (category like food, shopping, transportation, etc.)
-                - type: string (either "expense" or "income")
-                
-                If any information is missing, make reasonable assumptions.
-                """
-
-                response = self.llm.invoke(extraction_prompt)
-
-                # Try to parse the response as JSON
-                import json
-                import re
-
-                # Extract JSON from the response
-                json_match = re.search(r"\{.*\}", str(response.content), re.DOTALL)
-                if json_match:
-                    transaction_data = json.loads(json_match.group())
-                    return f"Extracted transaction: {json.dumps(transaction_data, indent=2)}"
-                else:
-                    return f"Could not extract transaction details from: {text}"
-
-            except Exception as e:
-                return f"Error extracting transaction: {str(e)}"
-
         # Define the tools
         tools = [
             insert_transaction_tool,
             query_transactions_tool,
-            extract_transaction_tool,
         ]
 
         # Create the prompt template
@@ -139,18 +108,19 @@ class FinancialAgent:
             [
                 (
                     "system",
-                    """You are a financial assistant that helps users manage their transactions.
+                    f"""You are a financial assistant that helps users manage their transactions.
             
             Your job is to understand user requests and determine the appropriate action:
             
             1. If the user is describing a transaction they want to record (e.g., "I spent $50 on groceries"), 
-               use the insert_transaction_tool to store it.
-            
+               use the insert_transaction_tool to store it. The category should be one of the following: {[category.value for category in TransactionCategory]}
+               - Consider that the current date is {datetime.now().isoformat()} and the date should be in the format YYYY-MM-DD
+               - User might provide the time of transaction with words like "yesterday", "today", "last week", "last month", "last year", etc.
+               - If the user provides the time of transaction with words, convert it to the format YYYY-MM-DD
+               - If the user provides the time of transaction with a date, use it as is.
+
             2. If the user is asking about their transactions (e.g., "How much did I spend on food?"), 
                use the query_transactions_tool to retrieve information. if query_transactions_tool returns a None, say that spendiing was 0.
-            
-            3. If the user is asking you to extract transaction details from text, 
-               use the extract_transaction_tool.
             
             Always be helpful and provide clear responses about what you're doing.
             """,
