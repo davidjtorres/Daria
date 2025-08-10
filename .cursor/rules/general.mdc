@@ -1,0 +1,44 @@
+---
+title: Coding Style Guide
+description: Personal coding style rules for Cursor AI
+priority: 1
+---
+
+# Coding Style Guide
+
+## 1. Naming Conventions
+
+- **Always use `snake_case`** for variables and functions.
+- **Use ALL_CAPS** for constants.
+- ✅ `max_value`, `process_data`, `MAX_RETRIES`
+- ❌ `maxValue`, `processData`, `MaxRetries`
+
+---
+
+## 2. Code Principles
+
+- Follow **SOLID principles** and **Clean Code** practices.
+- Keep things **balanced** — avoid over-engineering or adding unnecessary abstractions.
+- Example:
+  - **Good:** One class per responsibility, small functions, meaningful names.
+  - **Bad:** Excessive layers or factories for simple tasks.
+
+---
+
+## 3. Collaboration Rule
+
+- **Always ask me before making any code changes.**
+- Applies to:
+  - Renaming variables
+  - Restructuring methods/classes
+  - Modifying existing logic
+  - creating new files
+- Treat this as a _confirmation checkpoint_ before proceeding.
+
+---
+
+## 4. General Mindset
+
+- Write code as if the next person to maintain it will be **an exhausted version of yourself**.
+- Keep clarity over cleverness.
+- Document intent when it’s not obvious.
