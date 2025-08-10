@@ -7,6 +7,7 @@ from database import DatabaseClient
 from utils import dollars_to_cents, validate_amount
 from constants import TransactionCategory
 from datetime import datetime
+from repositories import TransactionRepository
 
 
 class FinancialAgent:
@@ -16,6 +17,7 @@ class FinancialAgent:
         """Initialize the financial agent."""
         self.llm = ChatOpenAI(model="gpt-4o-mini")
         self.db = DatabaseClient()
+        self.transaction_repository = TransactionRepository()
         self.agent = self._create_agent()
 
     def _create_agent(self):
@@ -32,26 +34,26 @@ class FinancialAgent:
         ) -> str:
             """Insert a new transaction into the database."""
             try:
+                # convert date to iso format
+                transaction_date = datetime.strptime(date, "%Y-%m-%d")
+
                 # Validate and convert amount to cents
                 validate_amount(amount)
                 amount_cents = dollars_to_cents(amount)
 
-                # Prepare transaction data
-                transaction_data = {
-                    "amount": amount_cents,
-                    "description": description,
-                    "category": category,
-                    "type": transaction_type,
-                    "date": date,
-                }
-
-                # Insert into database
-                result = self.db.insert_transaction(transaction_data)
+                # Create and insert transaction using TransactionRepository
+                transaction = self.transaction_repository.insert_transaction(
+                    amount=amount_cents,
+                    description=description,
+                    category=category,
+                    type=transaction_type,
+                    date=transaction_date,
+                )
 
                 return (
                     f"Successfully recorded {transaction_type} of ${amount:.2f} "
                     f"for {description} in category '{category}'. "
-                    f"Transaction ID: {result['id']}"
+                    f"Transaction ID: {transaction.id}"
                 )
 
             except Exception as e:
@@ -109,19 +111,22 @@ class FinancialAgent:
                 (
                     "system",
                     f"""You are a financial assistant that helps users manage their transactions.
-            
+
             Your job is to understand user requests and determine the appropriate action:
-            
-            1. If the user is describing a transaction they want to record (e.g., "I spent $50 on groceries"), 
-               use the insert_transaction_tool to store it. The category should be one of the following: {[category.value for category in TransactionCategory]}
+
+            1. If the user is describing a transaction they want to record 
+               (e.g., "I spent $50 on groceries"), use the insert_transaction_tool to store it. 
+               The category should be one of the following: {[category.value for category in TransactionCategory]}
                - Consider that the current date is {datetime.now().isoformat()} and the date should be in the format YYYY-MM-DD
-               - User might provide the time of transaction with words like "yesterday", "today", "last week", "last month", "last year", etc.
+               - User might provide the time of transaction with words like "yesterday", "today", 
+                 "last week", "last month", "last year", etc.
                - If the user provides the time of transaction with words, convert it to the format YYYY-MM-DD
                - If the user provides the time of transaction with a date, use it as is.
 
             2. If the user is asking about their transactions (e.g., "How much did I spend on food?"), 
-               use the query_transactions_tool to retrieve information. if query_transactions_tool returns a None, say that spendiing was 0.
-            
+               use the query_transactions_tool to retrieve information. if query_transactions_tool returns a None, 
+               say that spending was 0.
+
             Always be helpful and provide clear responses about what you're doing.
             """,
                 ),
