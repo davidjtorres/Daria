@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv, find_dotenv
 from financial_agent_new import FinancialAgent
+from routes import transaction_router
 
 # Load environment variables
 load_dotenv(find_dotenv())
@@ -85,6 +86,10 @@ async def chat(request: ChatRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# Include transaction routes
+app.include_router(transaction_router)
 
 
 if __name__ == "__main__":
