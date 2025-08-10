@@ -27,6 +27,7 @@ services:
       - '8000:8000'
     environment:
       - DATABASE_URL=postgresql://financial_user:financial_password@postgres:5432/financial_db
+      - AGENT_DATABASE_URL=postgresql://agent:rain089@postgres:5432/financial_db
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     depends_on:
       postgres:

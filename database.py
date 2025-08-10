@@ -5,7 +5,7 @@ PostgreSQL database client for financial transactions.
 import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from typing import List, Dict, Any, Unio
+from typing import List, Dict, Any
 
 
 class DatabaseClient:
@@ -13,7 +13,7 @@ class DatabaseClient:
 
     def __init__(self):
         """Initialize database connection."""
-        self.connection_string = os.environ.get("DATABASE_URL")
+        self.connection_string = os.environ.get("AGENT_DATABASE_URL")
         if not self.connection_string:
             raise ValueError("DATABASE_URL environment variable is required")
 
