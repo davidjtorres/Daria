@@ -1,7 +1,5 @@
 ---
-title: Coding Style Guide
-description: Personal coding style rules for Cursor AI
-priority: 1
+alwaysApply: true
 ---
 
 # Coding Style Guide
