@@ -11,3 +11,4 @@ class TransactionCategory(Enum):
     ENTERTAINMENT = "entertainment"
     HEALTH = "health"
     UTILITIES = "utilities"
+    TAXES = "taxes"
