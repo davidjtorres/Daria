@@ -3,12 +3,13 @@ FastAPI application with LangChain financial agent.
 """
 
 import os
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv, find_dotenv
 from financial_agent_new import FinancialAgent
-from routes import transaction_router
+from routes import transaction_router, auth_router
+from auth_service import get_current_user, UserInfo
 
 # Load environment variables
 load_dotenv(find_dotenv())
@@ -43,6 +44,8 @@ class ChatResponse(BaseModel):
     response: str
     message: str
     status: str
+    user_id: int
+    username: str
 
 
 class HealthResponse(BaseModel):
@@ -65,7 +68,10 @@ async def health_check():
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(
+    request: ChatRequest,
+    user_info: UserInfo = Depends(get_current_user)
+):
     """
     Single chat endpoint that handles all financial requests.
 
@@ -81,7 +87,11 @@ async def chat(request: ChatRequest):
         )
 
         return ChatResponse(
-            response=response, message=request.message, status="success"
+            response=response, 
+            message=request.message, 
+            status="success",
+            user_id=0,  # We'll get this from database if needed
+            username=user_info.username
         )
 
     except Exception as e:
@@ -90,6 +100,9 @@ async def chat(request: ChatRequest):
 
 # Include transaction routes
 app.include_router(transaction_router)
+
+# Include authentication routes
+app.include_router(auth_router)
 
 
 if __name__ == "__main__":
