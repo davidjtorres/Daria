@@ -32,6 +32,17 @@ OPENAI_API_KEY=your_openai_api_key_here
 
 # Database URL (for local development)
 DATABASE_URL=postgresql://financial_user:financial_password@localhost:5432/financial_db
+
+# AWS Configuration
+AWS_REGION=us-east-1
+AWS_ACCESS_KEY_ID=your_aws_access_key_id
+AWS_SECRET_ACCESS_KEY=your_aws_secret_access_key
+
+# Cognito Configuration
+COGNITO_USER_POOL_ID=us-east-1_xxxxxxxxx
+COGNITO_CLIENT_ID=your_cognito_client_id
+COGNITO_CLIENT_SECRET=your_cognito_client_secret
+COGNITO_DOMAIN=your-app.auth.us-east-1.amazoncognito.com
 EOF
     print_status "Created .env template. Please update with your actual values."
 fi
@@ -39,7 +50,7 @@ fi
 # Function to build and run with docker-compose
 run_with_compose() {
     print_status "Building and starting services with docker-compose..."
-    docker-compose up --build -d
+    docker-compose --env-file .env up --build -d
     print_status "Services started! API available at http://localhost:8000"
     print_status "Database available at localhost:5432"
 }
@@ -47,40 +58,40 @@ run_with_compose() {
 # Function to stop services
 stop_services() {
     print_status "Stopping services..."
-    docker-compose down
+    docker-compose --env-file .env down
     print_status "Services stopped."
 }
 
 # Function to view logs
 view_logs() {
     print_status "Showing logs..."
-    docker-compose logs -f
+    docker-compose --env-file .env logs -f
 }
 
 # Function to rebuild and restart
 rebuild() {
     print_status "Rebuilding and restarting services..."
-    docker-compose down
-    docker-compose up --build -d
+    docker-compose --env-file .env down
+    docker-compose --env-file .env up --build -d
     print_status "Services rebuilt and restarted!"
 }
 
 # Function to run tests
 run_tests() {
     print_status "Running tests in container..."
-    docker-compose exec api python -m pytest
+    docker-compose --env-file .env exec api python -m pytest
 }
 
 # Function to access database
 db_shell() {
     print_status "Opening PostgreSQL shell..."
-    docker-compose exec postgres psql -U financial_user -d financial_db
+    docker-compose --env-file .env exec postgres psql -U financial_user -d financial_db
 }
 
 # Function to show status
 show_status() {
     print_status "Service status:"
-    docker-compose ps
+    docker-compose --env-file .env ps
 }
 
 # Function to clean up
@@ -89,7 +100,7 @@ cleanup() {
     read -r response
     if [[ "$response" =~ ^([yY][eE][sS]|[yY])$ ]]; then
         print_status "Cleaning up..."
-        docker-compose down -v --remove-orphans
+        docker-compose --env-file .env down -v --remove-orphans
         docker system prune -f
         print_status "Cleanup complete!"
     else
