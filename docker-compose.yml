@@ -26,9 +26,13 @@ services:
     ports:
       - '8000:8000'
     environment:
-      - DATABASE_URL=postgresql://financial_user:financial_password@postgres:5432/financial_db
-      - AGENT_DATABASE_URL=postgresql://agent:rain089@postgres:5432/financial_db
+      - DATABASE_URL=${DATABASE_URL}
+      - AGENT_DATABASE_URL=${AGENT_DATABASE_URL}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - COGNITO_USER_POOL_ID=${COGNITO_USER_POOL_ID}
+      - COGNITO_CLIENT_ID=${COGNITO_CLIENT_ID}
+      - COGNITO_CLIENT_SECRET=${COGNITO_CLIENT_SECRET}
+      - AWS_REGION=${AWS_REGION}
     depends_on:
       postgres:
         condition: service_healthy
