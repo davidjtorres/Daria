@@ -354,6 +354,80 @@ async def forgot_password(username: str) -> Dict[str, Any]:
             )
 
 
+async def set_new_password(
+    session: str,
+    username: str,
+    new_password: str
+) -> TokenResponse:
+    """Set new password for user in NEW_PASSWORD_REQUIRED challenge."""
+    try:
+        # Prepare parameters
+        params = {
+            "ClientId": cognito_config.client_id,
+            "ChallengeName": "NEW_PASSWORD_REQUIRED",
+            "Session": session,
+            "ChallengeResponses": {
+                "USERNAME": username,
+                "NEW_PASSWORD": new_password
+            }
+        }
+        
+        # Add SECRET_HASH if client secret is configured
+        if cognito_config.client_secret and cognito_config.client_id:
+            params["ChallengeResponses"]["SECRET_HASH"] = compute_secret_hash(
+                username, 
+                cognito_config.client_id, 
+                cognito_config.client_secret
+            )
+        
+        # Complete the auth challenge
+        response = cognito_config.cognito_client.respond_to_auth_challenge(**params)
+        
+        # Get user information
+        user_response = cognito_config.cognito_client.get_user(
+            AccessToken=response['AuthenticationResult']['AccessToken']
+        )
+        
+        # Extract user attributes
+        user_attributes = {attr['Name']: attr['Value'] for attr in user_response['UserAttributes']}
+        
+        user_info = UserInfo(
+            sub=user_attributes.get('sub'),
+            username=username,
+            email=user_attributes.get('email'),
+            email_verified=user_attributes.get('email_verified', 'false').lower() == 'true',
+            name=user_attributes.get('name'),
+            given_name=user_attributes.get('given_name'),
+            family_name=user_attributes.get('family_name')
+        )
+        
+        return TokenResponse(
+            access_token=response['AuthenticationResult']['AccessToken'],
+            expires_in=response['AuthenticationResult']['ExpiresIn'],
+            user=user_info
+        )
+        
+    except ClientError as e:
+        error_code = e.response['Error']['Code']
+        error_message = e.response['Error']['Message']
+        
+        if error_code == 'InvalidPasswordException':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New password does not meet requirements"
+            )
+        elif error_code == 'ExpiredCodeException':
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Session has expired"
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"AWS Cognito error: {error_message}"
+            )
+
+
 async def confirm_forgot_password(
     username: str,
     confirmation_code: str,
