@@ -7,8 +7,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv, find_dotenv
 from financial_agent import FinancialAgent
-from routes import transaction_router, auth_router
-from auth_service import get_current_user, UserInfo
+from routes import transaction_router
 
 # Load environment variables
 load_dotenv(find_dotenv())
@@ -184,9 +183,6 @@ async def stream_chat(
 
 # Include transaction routes
 app.include_router(transaction_router)
-
-# Include authentication routes
-app.include_router(auth_router)
 
 
 if __name__ == "__main__":
