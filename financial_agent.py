@@ -66,7 +66,7 @@ class FinancialAgent:
                 # Use LLM to translate natural language to SQL
                 sql_prompt = f"""
                 Translate this natural language query to SQL: "{query}"
-                
+
                 The transactions table has these columns:
                 - id (SERIAL PRIMARY KEY)
                 - amount (INTEGER, stored in cents)
@@ -76,20 +76,20 @@ class FinancialAgent:
                 - date (TIMESTAMP WITH TIME ZONE)
                 - created_at (TIMESTAMP WITH TIME ZONE)
                 - updated_at (TIMESTAMP WITH TIME ZONE)
-                
+
                 Important notes:
                 - Amount is stored in cents, so $10.50 is stored as 1050
                 - Use amount/100.0 to convert cents to dollars for display
                 - Types are: expense, income
-                
-                Return ONLY the raw SQL query as a plain string. Do not use markdown 
+
+                Return ONLY the raw SQL query as a plain string. Do not use markdown
                 formatting, code blocks, or any other formatting. Just the SQL query itself.
                 """
 
-                response = self.llm.invoke(sql_prompt)
+                response = self.llm.invoke(
+                    sql_prompt, config={"tags": ["sql_generation"]}
+                )
                 sql_query = str(response.content).strip()
-
-                print(f"Generated SQL: {sql_query}")
 
                 # Execute the SQL query
                 results = self.db.execute_sql(sql_query)
@@ -114,17 +114,18 @@ class FinancialAgent:
 
             Your job is to understand user requests and determine the appropriate action:
 
-            1. If the user is describing a transaction they want to record 
-               (e.g., "I spent $50 on groceries"), use the insert_transaction_tool to store it. 
+            1. If the user is describing a transaction they want to record
+               (e.g., "I spent $50 on groceries"), use the insert_transaction_tool to store it.
                The category should be one of the following: {[category.value for category in TransactionCategory]}
-               - Consider that the current date is {datetime.now().isoformat()} and the date should be in the format YYYY-MM-DD
-               - User might provide the time of transaction with words like "yesterday", "today", 
+               - Consider that the current date is {datetime.now().isoformat()}
+                 and the date should be in the format YYYY-MM-DD
+               - User might provide the time of transaction with words like "yesterday", "today",
                  "last week", "last month", "last year", etc.
                - If the user provides the time of transaction with words, convert it to the format YYYY-MM-DD
                - If the user provides the time of transaction with a date, use it as is.
 
-            2. If the user is asking about their transactions (e.g., "How much did I spend on food?"), 
-               use the query_transactions_tool to retrieve information. if query_transactions_tool returns a None, 
+            2. If the user is asking about their transactions (e.g., "How much did I spend on food?"),
+               use the query_transactions_tool to retrieve information. if query_transactions_tool returns a None,
                say that spending was 0.
 
             Always be helpful and provide clear responses about what you're doing.
@@ -166,3 +167,48 @@ class FinancialAgent:
 
         except Exception as e:
             return f"Error processing your request: {str(e)}"
+
+    async def stream_chat(
+        self, message: str, chat_history: Optional[List[Dict[str, Any]]] = None
+    ):
+        """
+        Process a chat message and stream the response.
+
+        Args:
+            message: User's message
+            chat_history: Previous chat messages
+
+        Yields:
+            Response chunks as they're generated
+        """
+        if chat_history is None:
+            chat_history = []
+
+        try:
+            async for event in self.agent.astream_events(
+                {"input": message, "chat_history": chat_history}, version="v1"
+            ):
+                event_type = event["event"]
+
+                # Only stream from the main agent LLM, not from tool LLM calls
+                if event_type == "on_chat_model_stream":
+                    # Check if this is from the main agent (not from sql_generation tool LLM calls)
+                    tags = event.get("tags", [])
+
+                    # Skip events from sql_generation tool LLM calls
+                    tags_str = str(tags).lower()
+                    if "sql_generation" not in tags_str:
+                        chunk = event.get("data", {}).get("chunk", {})
+                        # Handle message objects with content attribute
+                        if hasattr(chunk, "content") and not isinstance(chunk, dict):
+                            content = getattr(chunk, "content", "")
+                            if content:
+                                yield content
+                        # Handle dictionary chunks
+                        elif isinstance(chunk, dict) and "content" in chunk:
+                            content = chunk.get("content", "")
+                            if content:
+                                yield content
+
+        except Exception as e:
+            yield f"Error processing your request: {str(e)}"

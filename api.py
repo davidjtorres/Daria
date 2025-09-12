@@ -1,13 +1,12 @@
-"""
-FastAPI application with LangChain financial agent.
-"""
-
 import os
+import json
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv, find_dotenv
-from financial_agent_new import FinancialAgent
+from financial_agent import FinancialAgent
 from routes import transaction_router, auth_router
 from auth_service import get_current_user, UserInfo
 
@@ -32,6 +31,9 @@ app.add_middleware(
 
 # Initialize the financial agent
 financial_agent = FinancialAgent()
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 # Pydantic models
@@ -67,10 +69,17 @@ async def health_check():
     return HealthResponse(status="healthy", message="API is operational")
 
 
+@app.get("/test-chat", response_class=HTMLResponse)
+async def test_chat_page():
+    """Redirect to the static chat test page"""
+    with open("static/chat-test.html", "r") as f:
+        return HTMLResponse(content=f.read())
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(
     request: ChatRequest,
-    user_info: UserInfo = Depends(get_current_user)
+    # user_info: UserInfo = Depends(get_current_user)  # Temporarily disabled
 ):
     """
     Single chat endpoint that handles all financial requests.
@@ -87,14 +96,89 @@ async def chat(
         )
 
         return ChatResponse(
-            response=response, 
-            message=request.message, 
+            response=response,
+            message=request.message,
             status="success",
             user_id=0,  # We'll get this from database if needed
-            username=user_info.username
+            username="anonymous",  # Temporarily disabled auth
         )
 
     except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/chat/stream")
+async def stream_chat(
+    request: ChatRequest,
+    # user_info: UserInfo = Depends(get_current_user)  # Temporarily disabled
+):
+    """
+    Streaming chat endpoint that handles all financial requests.
+    Returns a server-sent events (SSE) stream of the agent's response.
+
+    The agent can:
+    - Insert transactions (e.g., "I spent $50 on groceries")
+    - Query transactions (e.g., "How much did I spend on food?")
+    - Extract transaction details from text
+    """
+    try:
+
+        async def event_generator():
+
+            try:
+                chunk_count = 0
+                async for chunk in financial_agent.stream_chat(
+                    message=request.message, chat_history=request.chat_history
+                ):
+                    chunk_count += 1
+                    if chunk:  # Only send non-empty chunks
+                        data = {
+                            "content": chunk,
+                            "message": request.message,
+                            "status": "streaming",
+                            "user_id": 0,
+                            "username": "anonymous",
+                        }
+                        sse_data = f"data: {json.dumps(data)}\n\n"
+                        yield sse_data
+                # Send a final message to indicate completion
+                final_data = {
+                    "content": "",
+                    "status": "complete",
+                    "user_id": 0,
+                    "username": "anonymous",
+                }
+                final_sse = f"data: {json.dumps(final_data)}\n\n"
+                yield final_sse
+
+            except Exception as e:
+                print(f"Error in event_generator: {e}")
+                import traceback
+
+                traceback.print_exc()
+                error_data = {
+                    "content": f"Error: {str(e)}",
+                    "message": request.message,
+                    "status": "error",
+                    "user_id": 0,
+                    "username": "anonymous",
+                }
+                yield f"data: {json.dumps(error_data)}\n\n"
+
+        from fastapi.responses import StreamingResponse
+
+        return StreamingResponse(
+            event_generator(),
+            media_type="text/plain",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Content-Type": "text/event-stream",
+            },
+        )
+
+    except Exception as e:
+        print(f"[DEBUG] Exception in stream_chat: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 
