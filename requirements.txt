@@ -24,3 +24,11 @@ pydantic==2.8.0
 python-multipart==0.0.9
 
 
+# AWS
+boto3==1.40.10
+
+# Email validation
+email-validator==2.1.0
+
+# Server-Sent Events (SSE)
+sse-starlette==1.8.2
