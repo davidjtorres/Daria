@@ -53,6 +53,8 @@ run_with_compose() {
     docker-compose --env-file .env up --build -d
     print_status "Services started! API available at http://localhost:8000"
     print_status "Database available at localhost:5432"
+    print_status "Following API container logs (press Ctrl+C to exit)..."
+    docker-compose --env-file .env logs -f api
 }
 
 # Function to stop services
