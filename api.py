@@ -1,13 +1,13 @@
 import os
 import json
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from dotenv import load_dotenv, find_dotenv
 from financial_agent import FinancialAgent
-from routes import transaction_router
+from routes import transaction_router, gmail_router
 
 # Load environment variables
 load_dotenv(find_dotenv())
@@ -183,6 +183,9 @@ async def stream_chat(
 
 # Include transaction routes
 app.include_router(transaction_router)
+
+# Include Gmail routes
+app.include_router(gmail_router)
 
 
 if __name__ == "__main__":
